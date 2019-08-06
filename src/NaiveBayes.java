@@ -7,7 +7,6 @@ import java.util.*;
 public class NaiveBayes {
     private static int observations; // total number of observations
     private static int numAttributes; // number of attributes
-    private static ArrayList<String[]> data = new ArrayList<>();
     private static ArrayList<Set<String>> numAttributeValues; // number of possible values for each attribute
     private static HashMap<String, Integer> attributeCount; // counts of each attribute
     private static HashMap<String, Integer> classCount; // counts of each class
@@ -34,19 +33,8 @@ public class NaiveBayes {
      * @param file
      * @return ArrayList of instances
      */
-    public static ArrayList<String[]> readFile(String file){
-        BufferedReader br = null;
-        String row = null;
-        try{
-            br = new BufferedReader(new FileReader(file));
-            while ((row = br.readLine()) != null) {
-                data.add(row.split(","));
-            }
-        }catch (FileNotFoundException e){
-            e.printStackTrace();
-        }catch (IOException e){
-            e.printStackTrace();
-        }
+    public static Data readFile(String file){
+        Data data = new Data(file);
         return data;
     }
 
@@ -56,33 +44,33 @@ public class NaiveBayes {
      * @param trainingRatio
      * @return
      */
-    public static ArrayList<ArrayList<String[]>> trainTestSplit(ArrayList<String[]> data, double trainingRatio){
-        ArrayList<ArrayList<String[]>> out = new ArrayList<>();
-        ArrayList<String[]> copy = data;
-        ArrayList<String[]> training = new ArrayList<>();
+    public static ArrayList<Data> trainTestSplit(Data data, double trainingRatio){
+        ArrayList<Data> out = new ArrayList<>();
+        Data copy = data;
+        Data training = new Data();
         int trainingSize = (int)(data.size()*trainingRatio);
         while (training.size() < trainingSize){
             int index = new Random().nextInt(copy.size());
             training.add(copy.remove(index));
         }
         out.add(training);
-        System.out.println("Training size "+ training.size());
+        System.out.println("Training size " + training.size() + " " + training.toString());
+        System.out.println("Testing size " + copy.size() + " " + copy.toString());
         out.add(copy);
         return out;
     }
-
     /**
      * Splits data into k folds, each of these k folds becomes the testing set while remaining (k-1) folds are reserved for training
      * @param data
      * @param kfolds
      * @return
      */
-    public static ArrayList<ArrayList<ArrayList<String[]>>> crossValidationSplit(ArrayList<String[]> data, int kfolds) {
-        ArrayList<ArrayList<String[]>> folds = new ArrayList<>();
-        ArrayList<String[]> copy = data;
+    public static ArrayList<ArrayList<Data>> crossValidationSplit(Data data, int kfolds) {
+        ArrayList<Data> folds = new ArrayList<>();
+        Data copy = data;
         int foldSize = data.size() / kfolds;
         for (int i = 0; i < kfolds; i++) {
-            ArrayList<String[]> fold = new ArrayList<>();
+            Data fold = new Data();
             while (fold.size() < foldSize) {
                 int index = new Random().nextInt(copy.size());
                 fold.add(copy.remove(index));
@@ -90,11 +78,11 @@ public class NaiveBayes {
             folds.add(fold);
         }
 
-        ArrayList<ArrayList<ArrayList<String[]>>> pairs = new ArrayList<>(); // training-testing pairs
+        ArrayList<ArrayList<Data>> pairs = new ArrayList<>(); // training-testing pairs
         for (int i = 0; i < kfolds; i++) {
-            ArrayList<ArrayList<String[]>> pair = new ArrayList<>();
-            ArrayList<String[]> test = folds.get(i); // get each of the fold as testing set
-            ArrayList<String[]> train = new ArrayList<>();
+            ArrayList<Data> pair = new ArrayList<>();
+            Data test = folds.get(i); // get each of the fold as testing set
+            Data train = new Data();
             for (int j = 0; j < kfolds; j++) {
                 if (j != i) {
                     train.addAll(folds.get(j));
@@ -106,40 +94,39 @@ public class NaiveBayes {
         }
         return pairs;
     }
-
     /**
      * Build the classifier. Keep counts of occurrences of each class, each attribute, each class-attribute pair
      * @param data
      */
-    public static void buildClassifier(ArrayList<String[]> data){
-        for (String[] instance: data) {
-            observations++;
-            numAttributes = instance.length - 1;
-            String category = instance[numAttributes];
+    public static void buildClassifier(Data data){
+        observations = data.size();
+        numAttributes = data.numAttributes;
+        for (Instance instance: data.instances) {
+            String category = instance.actual;
             classCount.put(category, classCount.getOrDefault(category, 0) + 1);
+            String[] attributes = instance.attributes;
             for (int i = 0; i < numAttributes; i++) {
-                attributeCount.put(instance[i], attributeCount.getOrDefault(instance[i], 0) + 1);
+                attributeCount.put(attributes[i], attributeCount.getOrDefault(attributes[i], 0) + 1);
                 if (i < numAttributeValues.size()) {
-                    numAttributeValues.get(i).add(instance[i]);
+                    numAttributeValues.get(i).add(attributes[i]);
                 } else {
                     Set<String> valueCounts = new HashSet<>();
-                    valueCounts.add(instance[i]);
+                    valueCounts.add(attributes[i]);
                     numAttributeValues.add(valueCounts);
                 }
 
-                if (!jointCount.containsKey(instance[i])) {
+                if (!jointCount.containsKey(attributes[i])) {
                     HashMap<String, Integer> classWithCount = new HashMap<>();
                     classWithCount.put(category, 1);
-                    jointCount.put(instance[i], classWithCount);
+                    jointCount.put(attributes[i], classWithCount);
                 } else {
-                    HashMap<String, Integer> classWithCount = jointCount.get(instance[i]);
+                    HashMap<String, Integer> classWithCount = jointCount.get(attributes[i]);
                     classWithCount.put(category, classWithCount.getOrDefault(category, 0) + 1);
-                    jointCount.put(instance[i], classWithCount);
+                    jointCount.put(attributes[i], classWithCount);
                 }
             }
         }
     }
-
     /**
      * Train the classifier. Calculate class prior probability (e.g. P(Obfuscate)),
      * likelihood of evidence (e.g. P(Location | Obfuscate))
@@ -174,18 +161,17 @@ public class NaiveBayes {
             }
         }
     }
-
     /**
      * Predict. Calculate class posterior class probability (e.g. P(Obfuscate | Location, First Party))
      * @param newInstance
      * @return Class with the highest posterior probability
      */
-    public static String predict(String[] newInstance){
+    public static String predict(Instance newInstance){
         Double maxProb = Double.NEGATIVE_INFINITY;
         String result = null;
         for (String category: classCount.keySet()) {
             Double prob = priorProb.get(category);
-            for (String attribute : newInstance) {
+            for (String attribute : newInstance.attributes) {
                 if (!evidenceLikelihood.containsKey(attribute)){
                     continue;
                 }
@@ -197,60 +183,42 @@ public class NaiveBayes {
                 result = category;
             }
         }
+        newInstance.predicted = result;
         return result;
     }
-
-    /**
-     * Return predictions for an arraylist of new instances
-     * @param testing
-     * @return
-     */
-    public static ArrayList<String> getPredictions(ArrayList<String[]> testing){
-        ArrayList<String> predictions = new ArrayList<>();
-        for (String[] instance: testing){
-            String[] attributes = Arrays.copyOfRange(instance,0,instance.length-1);
-            String actual = instance[instance.length-1];
-            predictions.add(predict(attributes));
-        }
-        return predictions;
-    }
-
     /**
      * Calculate the accuracy of the prediction by comparing the value predicted by the model and the actual value.
      * @param testing
      * @return #true guesses / #instances
      */
-    public static double calculateAccuracy(ArrayList<String[]> testing){
+    public static double calculateAccuracy(Data testing){
         int count = 0;
-        for (String[] instance: testing){
-            String[] attributes = Arrays.copyOfRange(instance,0,instance.length-1);
-            String actual = instance[instance.length-1];
-            String predicted = predict(attributes);
-            if (actual.equals(predicted)){
+        for (Instance instance: testing.instances){
+            String predicted = predict(instance);
+            if (instance.actual.equals(predicted)){
                 count++;
             }
         }
         return (double)count/testing.size();
     }
-
     public static void main(String args[]){
-        ArrayList<String[]> data = readFile("weather.csv");
-        int kfolds= 7;
-        ArrayList<ArrayList<ArrayList<String[]>>> pairs = crossValidationSplit(data,kfolds);
+        Data data = readFile("weather.csv");
+        int kfolds = 7;
+        ArrayList<ArrayList<Data>> pairs = crossValidationSplit(data,kfolds);
         ArrayList<Double> accuracies = new ArrayList<>();
         double accuracySum = 0;
-        // train and calculate accuracy for each pair of training-testing sets
-        for (ArrayList<ArrayList<String[]>> pair: pairs){
+        for (ArrayList<Data> pair: pairs){
             NaiveBayes nb = new NaiveBayes();
-            ArrayList<String[]> training = pair.get(0);
-            ArrayList<String[]> testing = pair.get(1);
+            Data training = pair.get(0);
+            Data testing = pair.get(1);
             nb.buildClassifier(training);
             nb.train();
-            double accuracy = nb.calculateAccuracy(testing);
+            double accuracy = calculateAccuracy(testing);
             accuracySum += accuracy;
             accuracies.add(accuracy);
         }
         System.out.println("Accuracy of " + kfolds +" folds: " + accuracies);
         System.out.println("Average accuracy: " + accuracySum/kfolds);
+
     }
 }
