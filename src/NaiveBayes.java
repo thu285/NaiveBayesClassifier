@@ -54,8 +54,6 @@ public class NaiveBayes {
             training.add(copy.remove(index));
         }
         out.add(training);
-        System.out.println("Training size " + training.size() + " " + training.toString());
-        System.out.println("Testing size " + copy.size() + " " + copy.toString());
         out.add(copy);
         return out;
     }
@@ -199,26 +197,44 @@ public class NaiveBayes {
                 count++;
             }
         }
-        return (double)count/testing.size();
+        return 100*(double)count/testing.size();
     }
     public static void main(String args[]){
-        Data data = readFile("weather.csv");
-        int kfolds = 7;
-        ArrayList<ArrayList<Data>> pairs = crossValidationSplit(data,kfolds);
-        ArrayList<Double> accuracies = new ArrayList<>();
-        double accuracySum = 0;
-        for (ArrayList<Data> pair: pairs){
+        Scanner reader = new Scanner(System.in);
+        System.out.print("Enter data file name (e.g. weather.csv): ");
+        Data data = readFile(reader.next());
+        System.out.print("Enter 1 if you want to do train-test split, 2 if you want to do k-fold cross validation split: ");
+        int choice = reader.nextInt();
+        if (choice == 1){
+            System.out.print("Enter the ratio of data reserved for training (e.g. 0.8): ");
+            Double ratio = reader.nextDouble();
+            ArrayList<Data> pair = trainTestSplit(data,ratio);
             NaiveBayes nb = new NaiveBayes();
-            Data training = pair.get(0);
-            Data testing = pair.get(1);
-            nb.buildClassifier(training);
+            nb.buildClassifier(pair.get(0));
             nb.train();
-            double accuracy = calculateAccuracy(testing);
-            accuracySum += accuracy;
-            accuracies.add(accuracy);
+            Double accuracy = nb.calculateAccuracy(pair.get(1));
+            System.out.println("Accuracy: " + String.format("%.2f%%", accuracy));
         }
-        System.out.println("Accuracy of " + kfolds +" folds: " + accuracies);
-        System.out.println("Average accuracy: " + accuracySum/kfolds);
+        if (choice == 2){
+            System.out.print("Enter the number of folds (e.g. 5): " );
+            int kfolds = reader.nextInt();
+            ArrayList<ArrayList<Data>> pairs = crossValidationSplit(data,kfolds);
+            ArrayList<Double> accuracies = new ArrayList<>();
+            double accuracySum = 0;
+            for (ArrayList<Data> pair: pairs){
+                NaiveBayes nb = new NaiveBayes();
+                Data training = pair.get(0);
+                Data testing = pair.get(1);
+                nb.buildClassifier(training);
+                nb.train();
+                double accuracy = calculateAccuracy(testing);
+                accuracySum += accuracy;
+                accuracies.add(accuracy);
+            }
+            System.out.println("Accuracy of " + kfolds +" folds: " + accuracies);
+            System.out.println("Average accuracy: " + String.format("%.2f%%", accuracySum/kfolds));
+        }
+
 
     }
 }
