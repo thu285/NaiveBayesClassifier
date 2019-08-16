@@ -27,6 +27,7 @@ public class Data {
                 Instance i = new Instance(attributes, category);
                 instances.add(i);
             }
+	    br.close();
 
         }catch (FileNotFoundException e){
             e.printStackTrace();
@@ -76,6 +77,13 @@ public class Data {
         return instance;
     }
 
+    public Data deepCopy(){
+	Data copy = new Data();
+	for (Instance i: instances){
+	    copy.instances.add(i);
+	}
+	return copy;
+    }
     /**
      * Return String representation of Data object which is a list of Instance objects
      */

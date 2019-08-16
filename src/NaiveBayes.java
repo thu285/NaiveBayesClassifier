@@ -3,6 +3,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
+import java.io.FileWriter;
 
 public class NaiveBayes {
     private static int observations; // total number of observations
@@ -46,7 +47,7 @@ public class NaiveBayes {
      */
     public static ArrayList<Data> trainTestSplit(Data data, double trainingRatio){
         ArrayList<Data> out = new ArrayList<>();
-        Data copy = data;
+        Data copy = data.deepCopy();
         Data training = new Data();
         int trainingSize = (int)(data.size()*trainingRatio);
         while (training.size() < trainingSize){
@@ -65,7 +66,7 @@ public class NaiveBayes {
      */
     public static ArrayList<ArrayList<Data>> crossValidationSplit(Data data, int kfolds) {
         ArrayList<Data> folds = new ArrayList<>();
-        Data copy = data;
+        Data copy = data.deepCopy();
         int foldSize = data.size() / kfolds;
         for (int i = 0; i < kfolds; i++) {
             Data fold = new Data();
@@ -192,15 +193,18 @@ public class NaiveBayes {
     public static double calculateAccuracy(Data testing){
         int count = 0;
         for (Instance instance: testing.instances){
+	    //System.out.println("Instance: " + instance.toString());
             String predicted = predict(instance);
+	    //System.out.println("Actual: " + instance.actual + " Predicted: " +predicted); 
             if (instance.actual.equals(predicted)){
                 count++;
             }
         }
+
         return 100*(double)count/testing.size();
     }
     public static void main(String args[]){
-        Scanner reader = new Scanner(System.in);
+Scanner reader = new Scanner(System.in);
         System.out.print("Enter data file name (e.g. weather.csv): ");
         Data data = readFile(reader.next());
         System.out.print("Enter 1 if you want to do train-test split, 2 if you want to do k-fold cross validation split: ");
@@ -213,6 +217,7 @@ public class NaiveBayes {
             nb.buildClassifier(pair.get(0));
             nb.train();
             Double accuracy = nb.calculateAccuracy(pair.get(1));
+	    System.out.println("Data size: " + data.size());
             System.out.println("Accuracy: " + String.format("%.2f%%", accuracy));
         }
         if (choice == 2){
@@ -231,10 +236,12 @@ public class NaiveBayes {
                 accuracySum += accuracy;
                 accuracies.add(accuracy);
             }
+	    System.out.println("Data size: " + data.size());
             System.out.println("Accuracy of " + kfolds +" folds: " + accuracies);
             System.out.println("Average accuracy: " + String.format("%.2f%%", accuracySum/kfolds));
         }
-
-
+	
+        
     }
 }
+
